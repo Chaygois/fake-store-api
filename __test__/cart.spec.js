@@ -1,104 +1,154 @@
-const supertest = require('supertest')
-const app = require('../app')
+import supertest from 'supertest';
+import { describe, beforeAll, test, expect } from '@jest/globals';
 
-describe('testing cart API',()=>{
-    it('get all carts',async()=>{
-        const response = await supertest(app).get('/carts')
-        expect(response.status).toBe(200)
-        console.log(response.body)
-        expect(response.body).not.toEqual([]);
-    })
+const api = supertest('https://fakestoreapi.com');
 
+let createdProductId
 
-    it('get a single cart',async ()=>{
-        const response = await supertest(app).get('/carts/2')
-        expect(response.status).toBe(200);
-        console.log(response.body)
-        expect(response.body).not.toEqual({});
-        expect(response.body).toHaveProperty('userId');
-        expect(response.body).not.toHaveProperty('_Id');
-    })
+describe('Product API', () => {
+  beforeAll(() => {
+    console.log('Iniciando testes de API de produtos...');
+  });
 
-    it("get carts in a date range and limit and sort", async () => {
-        const response = await supertest(app).get("/carts?limit=2&sort=desc&startdate=2019-12-10&enddate=2020-10-10")
-        expect(response.status).toBe(200)
-        console.log('get with querystring', response.body)
-        expect(response.body).not.toEqual([])
-    })
+  // POSITIVOS
 
+  test('Lista todos os produtos (GET /products)', async () => {
+    const response = await api.get('/products');
+    expect(response.status).toBe(200);
+    expect(Array.isArray(response.body)).toBe(true);
+    expect(response.body.length).toBeGreaterThan(0);
+  });
 
+  test('Listar produto específico por ID (GET /products/:id)', async () => {
+    // Primeiro busca lista de produtos para pegar um id real.
+    const productsList = await api.get('/products');
+    expect(productsList.status).toBe(200);
+    const id = productsList.body[0]?.id;
+    expect(typeof id).toBe('number');
 
+    const response = await api.get(`/products/${id}`);
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveProperty('id', id);
+  });
 
-    it("get carts in for user in date range", async () => {
-        const response = await supertest(app).get("/carts/user/1?startdate=2019-12-10&enddate=2020-10-10")
-        expect(response.status).toBe(200)
-        console.log('get with date range', response.body)
-        expect(response.body).not.toEqual([])
-    })
+  test('Listar produtos por categoria (GET /products/category/:category)', async () => {
+    // Busca categorias disponíveis
+    const categoriesRes = await api.get('/products/categories');
+    expect(categoriesRes.status).toBe(200);
+    const categories = categoriesRes.body;
+    expect(Array.isArray(categories)).toBe(true);
+    expect(categories.length).toBeGreaterThan(0);
 
-    it("get carts in for user without start date", async () => {
-        const response = await supertest(app).get("/carts/user/1?enddate=2020-10-10")
-        expect(response.status).toBe(200)
-        console.log('get user cart without start date', response.body)
-        expect(response.body).not.toEqual([])
-    })
+    const category = categories[0];
+    const response = await api.get(`/products/category/${category}`);
+    expect(response.status).toBe(200);
+    expect(Array.isArray(response.body)).toBe(true);
+response.body.forEach((p) => {
+      expect(p.category).toBe(category);
+    });
+  });
 
-    it("get carts in for user without end date", async () => {
-        const response = await supertest(app).get("/carts/user/1?startdate=2019-12-10")
-        expect(response.status).toBe(200)
-        console.log('get user cart without end date', response.body)
-        expect(response.body).not.toEqual([])
-    })
+  test('Criar um novo produto (POST /products)', async () => {
+    const productData = {
+      title: 'Novo Produto Teste',
+      price: 123.45,
+      description: 'Produto criado para teste automatizado',
+      image: 'https://i.pravatar.cc/150?img=1',
+      category: 'electronics',
+    };
 
-    it("get carts in for user", async () => {
-        const response = await supertest(app).get("/carts/user/1")
-        expect(response.status).toBe(200)
-        console.log('get with userid', response.body)
-        expect(response.body).not.toEqual([])
-    })
+    const response = await api.post('/products')
+      .send(productData)
+      .set('Content-Type', 'application/json');
 
+    expect([200, 201]).toContain(response.status);
+    expect(response.body).toHaveProperty('id');
+    createdProductId = response.body.id;
+    expect(typeof createdProductId).toBe('number');
+  });
 
-    it('add a new cart',async () => {
-        const response = await supertest(app).post('/carts').send({
-            userId:1,
-            date:new Date('2020-10-10'),
-            products:[{productId:2,quantity:4},{productId:1,quantity:10},{productId:5,quantity:2}]
-        })
-        expect(response.status).toBe(200);
-        console.log(response.body)
-        expect(response.body).toHaveProperty('id');
-    })
+  test('Atualizar produto existente (PUT /products/:id)', async () => {
+    if (!createdProductId) {
+      console.log('Skipping update test as product was not created');
+      return;
+    }
+    const updatedData = {
+      title: 'Produto Teste Atualizado',
+      price: 222.22,
+      description: 'Descrição Atualizada',
+      image: 'https://i.pravatar.cc/150?img=2',
+      category: 'jewelery',
+    };
 
+    const response = await api.put(`/products/${createdProductId}`)
+      .send(updatedData)
+      .set('Content-Type', 'application/json');
 
-    it('edit a cart',async () => {
-        const response = await supertest(app).put('/carts/2').send({
-            userId:1,
-            date:new Date('2020-10-10'),
-            products:[{productId:2,quantity:4},{productId:1,quantity:10},{productId:5,quantity:2}]
-        })
-        expect(response.status).toBe(200);
-        console.log(response.body)
-        expect(response.body).toHaveProperty('id');
-    })
+    expect([200, 201]).toContain(response.status);
+    expect(response.body).toHaveProperty('id', createdProductId);
+    expect(response.body.title).toBe(updatedData.title);
+  });
 
+  test('Deletar produto existente (DELETE /products/:id)', async () => {
+    if (!createdProductId) {
+      console.log('Skipping delete test as product was not created');
+      return;
+    }
+    const response = await api.delete(`/products/${createdProductId}`);
+    expect([200, 201]).toContain(response.status);
+    expect(response.body).toBeDefined();
+  });
 
-    it('edit a cart',async () => {
-        const response = await supertest(app).patch('/carts/2').send({
-            userId:1,
-            date:new Date('2020-10-10'),
-            products:[{productId:2,quantity:4},{productId:1,quantity:10},{productId:5,quantity:2}]
-        })
-        expect(response.status).toBe(200);
-        console.log(response.body)
-        expect(response.body).toHaveProperty('id');
-    })
+  // NEGATIVOS
 
+  test('Tentar acessar um produto inexistente (GET /products/:id)', async () => {
+    const response = await api.get('/products/99999999');
+    // FakeStore retorna {} com status 200 para não encontrados
+    expect([404, 200]).toContain(response.status);
+    if (response.status === 200) {
+      expect(response.body).toBeDefined();
+    }
+  });
 
-    it('delete a cart',async () => {
-        const response = await supertest(app).delete('/carts/2')
-        expect(response.status).toBe(200);
-        console.log(response.body)
-        expect(response.body).toHaveProperty('id');
-    })
-   
-})
+  test('Tentar criar produto com dados inválidos', async () => {
+    const productData = {
+      title: 123,
+      // price ausente
+      description: null,
+      image: 789,
+      category: false,
+    };
+    const response = await api.post('/products')
+      .send(productData)
+      .set('Content-Type', 'application/json');
+    // FakeStore pode retornar 200 ou 400 pois é mock
+    expect([200, 400, 422]).toContain(response.status);
+  });
+
+  test('Tentar atualizar produto inexistente', async () => {
+    const invalidId = 99999999;
+    const updateData = {
+      title: 'Fake Update',
+      price: 10,
+      description: 'desc',
+      image: 'fake.jpg',
+      category: 'electronics',
+    };
+    const response = await api.put(`/products/${invalidId}`)
+      .send(updateData)
+      .set('Content-Type', 'application/json');
+    expect([404, 200]).toContain(response.status);
+  });
+
+  test('Tentar deletar produto com id inválido', async () => {
+    const response = await api.delete('/products/99999999');
+    expect([404, 200]).toContain(response.status);
+  });
+
+  test('Tentar listar produtos por categoria inexistente ou filtro inválido', async () => {
+    const response = await api.get('/products/category/nao-existe-categoria');
+    expect([200, 404]).toContain(response.status);
+    if (response.status === 200) {
+      expect(Array.isArray(response.body)).toBe(true);
+    }
+})});

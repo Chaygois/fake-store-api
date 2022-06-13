@@ -1,85 +1,154 @@
-const supertest = require("supertest")
-const app = require("../app")
+import supertest from 'supertest';
+import { describe, beforeAll, test, expect } from '@jest/globals';
 
-describe("Testing products API", () => {
-    it("all product", async () => {
-        const response = await supertest(app).get("/products")
-        expect(response.status).toBe(200)
-        console.log('get', response.body)
-        expect(response.body).not.toStrictEqual([])
-    })
+const api = supertest('https://fakestoreapi.com');
 
-    it("get a single product", async () => {
-        const response = await supertest(app).get("/products/1")
-        expect(response.status).toBe(200)
-        console.log('get by id', response.body)
-        expect(response.body).not.toStrictEqual({})
-        expect(response.body).toHaveProperty('title')
-    })
+let createdProductId
 
+describe('Product API', () => {
+  beforeAll(() => {
+    console.log('Iniciando testes de API de produtos...');
+  });
 
-    it("get products in a category", async () => {
-        const response = await supertest(app).get("/products/category/jewelery")
-        expect(response.status).toBe(200)
-        console.log('get by category', response.body)
-        expect(response.body).not.toStrictEqual([])
-    })
+  // POSITIVOS
 
+  test('Lista todos os produtos (GET /products)', async () => {
+    const response = await api.get('/products');
+    expect(response.status).toBe(200);
+    expect(Array.isArray(response.body)).toBe(true);
+    expect(response.body.length).toBeGreaterThan(0);
+  });
 
-    it("get products in a limit and sort", async () => {
-        const response = await supertest(app).get("/products?limit=3&sort=desc")
-        expect(response.status).toBe(200)
-        console.log('get with querystring', response.body)
-        expect(response.body).not.toStrictEqual([])
-        expect(response.body).toHaveLength(3);
-    })
+  test('Listar produto específico por ID (GET /products/:id)', async () => {
+    // Primeiro busca lista de produtos para pegar um id real.
+    const productsList = await api.get('/products');
+    expect(productsList.status).toBe(200);
+    const id = productsList.body[0]?.id;
+    expect(typeof id).toBe('number');
 
-    it("post a product", async () => {
-        const response = await supertest(app).post('/products').send({
-            title: 'test',
-            price: 13.5,
-            description: 'test desc',
-            image: 'test img',
-            category: 'text cat'
-        })
-        expect(response.status).toBe(200)
-        console.log('post', response.body)
-        expect(response.body).toHaveProperty('id')
-    })
+    const response = await api.get(`/products/${id}`);
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveProperty('id', id);
+  });
 
-    it("put a product", async () => {
-        const response = await supertest(app).put('/products/1').send({
-            title: 'test',
-            price: 13.5,
-            description: 'test desc',
-            image: 'test img',
-            category: 'text cat'
-        })
-        expect(response.status).toBe(200)
-        console.log('put', response.body)
-        expect(response.body).toHaveProperty('id')
-    })
+  test('Listar produtos por categoria (GET /products/category/:category)', async () => {
+    // Busca categorias disponíveis
+    const categoriesRes = await api.get('/products/categories');
+    expect(categoriesRes.status).toBe(200);
+    const categories = categoriesRes.body;
+    expect(Array.isArray(categories)).toBe(true);
+    expect(categories.length).toBeGreaterThan(0);
 
+    const category = categories[0];
+    const response = await api.get(`/products/category/${category}`);
+    expect(response.status).toBe(200);
+    expect(Array.isArray(response.body)).toBe(true);
+response.body.forEach((p) => {
+      expect(p.category).toBe(category);
+    });
+  });
 
-    it("patch a product", async () => {
-        const response = await supertest(app).patch('/products/1').send({
-            title: 'test',
-            price: 13.5,
-            description: 'test desc',
-            image: 'test img',
-            category: 'text cat'
-        })
-        expect(response.status).toBe(200)
-        console.log('patch', response.body)
-        expect(response.body).toHaveProperty('id')
-    })
+  test('Criar um novo produto (POST /products)', async () => {
+    const productData = {
+      title: 'Novo Produto Teste',
+      price: 123.45,
+      description: 'Produto criado para teste automatizado',
+      image: 'https://i.pravatar.cc/150?img=1',
+      category: 'electronics',
+    };
 
+    const response = await api.post('/products')
+      .send(productData)
+      .set('Content-Type', 'application/json');
 
-    it('delete a product', async () => {
-        const response = await supertest(app).put('/products/1')
-        expect(response.status).toBe(200)
-        console.log('delete', response.body)
-        expect(response.body).toHaveProperty('id')
-    })
+    expect([200, 201]).toContain(response.status);
+    expect(response.body).toHaveProperty('id');
+    createdProductId = response.body.id;
+    expect(typeof createdProductId).toBe('number');
+  });
 
-})
+  test('Atualizar produto existente (PUT /products/:id)', async () => {
+    if (!createdProductId) {
+      console.log('Skipping update test as product was not created');
+      return;
+    }
+    const updatedData = {
+      title: 'Produto Teste Atualizado',
+      price: 222.22,
+      description: 'Descrição Atualizada',
+      image: 'https://i.pravatar.cc/150?img=2',
+      category: 'jewelery',
+    };
+
+    const response = await api.put(`/products/${createdProductId}`)
+      .send(updatedData)
+      .set('Content-Type', 'application/json');
+
+    expect([200, 201]).toContain(response.status);
+    expect(response.body).toHaveProperty('id', createdProductId);
+    expect(response.body.title).toBe(updatedData.title);
+  });
+
+  test('Deletar produto existente (DELETE /products/:id)', async () => {
+    if (!createdProductId) {
+      console.log('Skipping delete test as product was not created');
+      return;
+    }
+    const response = await api.delete(`/products/${createdProductId}`);
+    expect([200, 201]).toContain(response.status);
+    expect(response.body).toBeDefined();
+  });
+
+  // NEGATIVOS
+
+  test('Tentar acessar um produto inexistente (GET /products/:id)', async () => {
+    const response = await api.get('/products/99999999');
+    // FakeStore retorna {} com status 200 para não encontrados
+    expect([404, 200]).toContain(response.status);
+    if (response.status === 200) {
+      expect(response.body).toBeDefined();
+    }
+  });
+
+  test('Tentar criar produto com dados inválidos', async () => {
+    const productData = {
+      title: 123,
+      // price ausente
+      description: null,
+      image: 789,
+      category: false,
+    };
+    const response = await api.post('/products')
+      .send(productData)
+      .set('Content-Type', 'application/json');
+    // FakeStore pode retornar 200 ou 400 pois é mock
+    expect([200, 400, 422]).toContain(response.status);
+  });
+
+  test('Tentar atualizar produto inexistente', async () => {
+    const invalidId = 99999999;
+    const updateData = {
+      title: 'Fake Update',
+      price: 10,
+      description: 'desc',
+      image: 'fake.jpg',
+      category: 'electronics',
+    };
+    const response = await api.put(`/products/${invalidId}`)
+      .send(updateData)
+      .set('Content-Type', 'application/json');
+    expect([404, 200]).toContain(response.status);
+  });
+
+  test('Tentar deletar produto com id inválido', async () => {
+    const response = await api.delete('/products/99999999');
+    expect([404, 200]).toContain(response.status);
+  });
+
+  test('Tentar listar produtos por categoria inexistente ou filtro inválido', async () => {
+    const response = await api.get('/products/category/nao-existe-categoria');
+    expect([200, 404]).toContain(response.status);
+    if (response.status === 200) {
+      expect(Array.isArray(response.body)).toBe(true);
+    }
+})});

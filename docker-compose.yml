@@ -1,5 +1,3 @@
-version: '3.1'
-
 services:
   app:
     build: .
@@ -9,13 +7,17 @@ services:
       - "${PORT}:${PORT}"
     depends_on:
       - db
+
   db:
     image: mongo
     restart: always
+    # Usa named volume em vez de bind-mount
     volumes:
-      - ./mongo_data:/data/db
-    env_file:
-      - .env
+      - mongo_data:/data/db
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${DB_USERNAME?MongoDB username}
-      MONGO_INITDB_ROOT_PASSWORD: ${DB_PASSWORD?MongoDB password}
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+
+# Declaração de volumes (no fim do arquivo)
+volumes:
+  mongo_data:
