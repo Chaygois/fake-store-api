@@ -32,7 +32,6 @@ describe('Product API', () => {
   });
 
   test('Listar produtos por categoria (GET /products/category/:category)', async () => {
-    // Busca categorias disponíveis
     const categoriesRes = await api.get('/products/categories');
     expect(categoriesRes.status).toBe(200);
     const categories = categoriesRes.body;
@@ -103,7 +102,6 @@ response.body.forEach((p) => {
 
   test('Tentar acessar um produto inexistente (GET /products/:id)', async () => {
     const response = await api.get('/products/99999999');
-    // FakeStore retorna {} com status 200 para não encontrados
     expect([404, 200]).toContain(response.status);
     if (response.status === 200) {
       expect(response.body).toBeDefined();
@@ -113,7 +111,6 @@ response.body.forEach((p) => {
   test('Tentar criar produto com dados inválidos', async () => {
     const productData = {
       title: 123,
-      // price ausente
       description: null,
       image: 789,
       category: false,
@@ -121,7 +118,6 @@ response.body.forEach((p) => {
     const response = await api.post('/products')
       .send(productData)
       .set('Content-Type', 'application/json');
-    // FakeStore pode retornar 200 ou 400 pois é mock
     expect([200, 400, 422]).toContain(response.status);
   });
 
